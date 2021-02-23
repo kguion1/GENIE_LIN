@@ -2,6 +2,23 @@ import pandas as pd
 import numpy as np
 import anndata as ad
 
+#Download data_clinical_patient.txt, data_clinical_sample.txt, data_mutations_extended.txt
+#Make sure files are in same folder
+def preprocess( path_to_folder_with_files, \
+                patient_file="data_clinical_patient.txt", sample_file="data_clinical_sample.txt", maf_file="data_mutations_extended.txt" ):
+    """move from downloading data to necessary data frames"""
+
+    #Read in files
+    clinical_patient = pd.read_csv( "{}/{}".format(folder_with_files, patient_file), \
+                                                    sep="\t", low_memory=False, skiprows=4, index_col=0  )
+    clinical_sample = pd.read_csv( "{}/{}".format(folder_with_files, sample_file), \
+                                                    sep="\t", low_memory=False, skiprows=4, index_col=0 )
+    maf = pd.read_csv( "{}/{}".format(folder_with_files, maf_file), \
+                                                    sep=",", low_memory=False, )
+
+    
+
+
 def create_anndata_mut_counts( sample_data, clinic_data, maf_data, h5ad_output_file ):
     """create anndata frame with mutation counts"""
 
