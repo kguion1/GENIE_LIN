@@ -16,7 +16,7 @@ def preprocess( path_to_folder_with_files, \
     maf = pd.read_csv( "{}/{}".format(folder_with_files, maf_file), \
                                                     sep=",", low_memory=False, )
 
-    
+
 
 
 def create_anndata_mut_counts( sample_data, clinic_data, maf_data, h5ad_output_file ):
@@ -93,12 +93,14 @@ def create_kras_mut_counts( sample_data, clinic_data, maf_data, output_file ):
     obs_pandas.to_csv(output_file)
 
 def create_kras_mut_counts_per_sample( kras_mut_counts_sample, clinic_data, output_file ):
-    """Create kras mutation counts per patient"""
+    """Create kras mutation counts per sample"""
 
     col = ["KRAS_MUT"] + list(clinic_data.columns) + ["NUM_SAMP"] + ["SAMP_CONSIS"]
     pandas = pd.DataFrame( index=list(clinic_data.index), columns=col )
 
     for patient in clinic_data.index:
+
+        #access all samples of patient p
         kras_mut_sample_patient_p = kras_mut_counts_sample[ kras_mut_counts_sample[ "PATIENT_ID" ] == patient ]
         kras = False
         if sum( kras_mut_sample_patient_p[ "KRAS_COUNT" ] ) >= 1:
@@ -115,15 +117,71 @@ def create_kras_mut_counts_per_sample( kras_mut_counts_sample, clinic_data, outp
 
     pandas.to_csv(output_file)
 
+def add_specific_mutation_information( sample_data, patient_data, maf_data, output_file_location, HGVSp_Short="p.G12C", gene="KRAS" ):
+    """Add specific mutation. TRUE/FALSE and counts per patient."""
+
+    #check that all tumor samples in maf are also in sample data
+    assert all( samp in list(sample_data.index) for samp in np.unique( maf_data["Tumor_Sample_Barcode"] )  )
+
+    maf_data = maf_data[ maf_data["Hugo_Symbol"] == gene ]
+
+    #find specific mutation
+    hgvsp_mask = maf_data["HGVSp_Short"] == HGVSp_Short
+
+    #tumor samples with mutation
+    hgvsp_samples = list( maf_data["Tumor_Sample_Barcode"][ hgvsp_mask ] )
+
+    #checking if code is same
+    assert hgvsp_samples == list( maf_data[ hgvsp_mask ]["Tumor_Sample_Barcode"] )
+    #check all samples are unique
+    assert len( np.unique( hgvsp_samples) ) == len(hgvsp_samples)
+
+    #create new column per SAMPLE to put number of mutation counts
+    hgvsp_bool_col = "{}_PRESENT".format( HGVSp_Short )
+    sample_data.loc[:, hgvsp_bool_col ] = [False] * sample_data.shape[0]
+    sample_data.loc[ hgvsp_samples, hgvsp_bool_col ] = True
+    assert sum( sample_data[hgvsp_bool_col] ) == len(hgvsp_samples)
+
+    #map samples to patients. Only care about unique patients. If any sample of a patient is pos then pos
+    patients = np.unique( sample_data["PATIENT_ID"][ sample_data[hgvsp_bool_col] ], return_counts=True )
+    patient_data_mask_mut = []
+    patient_data_mask_mut = [ True if p in patients[0] else False for p in patient_data.index ]
+    assert len(patient_data_mask_mut) == patient_data.shape[0]
+    patient_data[ hgvsp_bool_col ] = patient_data_mask_mut
+
+    # inconsis = []
+    # for p in patients[0][ patients[1] > 1 ]:
+    #     patient_samples = sample_data[ sample_data["PATIENT_ID"] == p ]
+    #     print(p)
+    #     print(patient_samples)
+    #     print(sum( patient_samples[hgvsp_bool_col] ))
+    #     if sum( patient_samples[hgvsp_bool_col] ) == 0  or \
+    #                                 sum(patient_samples[hgvsp_bool_col] ) == patient_samples.shape[0]:
+    #         continue
+    #     inconsis.append(p)
+    #
+    # consis_col_name = "{}_CONSIS".format( HGVSp_Short )
+    # patient_data[consis_col_name] = [True] * patient_data.shape[0]
+    # patient_data.loc[inconsis, consis_col_name] = False
+
+    samp_output = "{}/genie_v8_kras_mutation_hgvs_sample.csv".format(output_file_location)
+    sample_data.to_csv( samp_output )
+
+    pat_output = "{}/genie_v8_kras_mutation_hgvs_patient.csv".format(output_file_location)
+    patient_data.to_csv( pat_output )
 
 if __name__ == '__main__':
-    sd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_clinical_sample_colorectal.csv", index_col=0)
-    cd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_clinical_patient_colorectal.csv", index_col=0)
+    # sd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_clinical_sample_colorectal.csv", index_col=0)
+    # cd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_clinical_patient_colorectal.csv", index_col=0)
     maf = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_mutations_extended_colorectal.csv", index_col=0, low_memory=False)
-    #create_anndata_mut_counts( sample_data=sd, clinic_data=cd ,maf_data=maf, \
-    #                           h5ad_output_file= "GENIE_data/GENIE_v8/genie_v8_anndata_mutation_count.h5ad")
-    #create_kras_mut_counts( sample_data=sd, clinic_data=cd ,maf_data=maf, \
-    #                             output_file= "GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_sample.csv")
-    kras_count = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_sample.csv", index_col=0)
-    create_kras_mut_counts_per_sample( kras_mut_counts_sample = kras_count, clinic_data=cd, \
-                                output_file = "GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_patient.csv" )
+    # #create_anndata_mut_counts( sample_data=sd, clinic_data=cd ,maf_data=maf, \
+    # #                           h5ad_output_file= "GENIE_data/GENIE_v8/genie_v8_anndata_mutation_count.h5ad")
+    # #create_kras_mut_counts( sample_data=sd, clinic_data=cd ,maf_data=maf, \
+    # #                             output_file= "GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_sample.csv")
+    # kras_count = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_sample.csv", index_col=0)
+    # create_kras_mut_counts_per_patient( kras_mut_counts_sample = kras_count, clinic_data=cd, \
+    #                             output_file = "GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_patient.csv" )
+
+    sd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_sample.csv", index_col=0)
+    cd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_patient.csv", index_col=0)
+    add_specific_mutation_information( sd, cd, maf, "GENIE_data/GENIE_v8", HGVSp_Short="p.G12C" )
