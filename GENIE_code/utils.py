@@ -170,10 +170,39 @@ def add_specific_mutation_information( sample_data, patient_data, maf_data, outp
     pat_output = "{}/genie_v8_kras_mutation_hgvs_patient.csv".format(output_file_location)
     patient_data.to_csv( pat_output )
 
+
+def create_patientsXgene_count_pandas( mutation_data, sample_data, output_file ):
+    """Create a patient by gene name mutation matrix. First column is KRASG12C. Mutations are counted"""
+
+    assert all( samp in list(sample_data.index) for samp in np.unique( mutation_data["Tumor_Sample_Barcode"] )  )
+
+    patient_list = [ sample_data.loc[sample]["PATIENT_ID"] for sample in mutation_data["Tumor_Sample_Barcode"] ]
+    assert len(patient_list) == mutation_data.shape[0]
+
+    mutation_data["PATIENT_ID"] = patient_list
+    gene_list = list( np.unique( mutation_data["Hugo_Symbol"] ) )
+    gene_list.append("KRAS.G12C")
+
+    final_df = pd.DataFrame(0, index=np.unique(patient_list) , columns=gene_list )
+
+    for patient in final_df.index:
+        genes_mutated = list( mutation_data[ mutation_data[ "PATIENT_ID" ] == patient][ "Hugo_Symbol" ]  )
+        if "KRAS" in genes_mutated:
+            df_patient = mutation_data[ mutation_data["PATIENT_ID"] == patient ]
+            df_kras = df_patient[ df_patient["Hugo_Symbol"] == "KRAS" ]
+            final_df.loc[patient, "KRAS.G12C"] = sum( df_kras["HGVSp_Short"] == "p.G12C" )
+        #print(len(genes_mutated))
+        for gene in genes_mutated:
+            final_df.loc[patient, gene] += 1
+
+    csv_file = "{}/genie_v8_patients_X_genes_binary.csv".format(output_file)
+    final_df.to_csv(csv_file)
+
 if __name__ == '__main__':
-    # sd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_clinical_sample_colorectal.csv", index_col=0)
-    # cd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_clinical_patient_colorectal.csv", index_col=0)
+    sd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_clinical_sample_colorectal.csv", index_col=0)
+    #cd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_clinical_patient_colorectal.csv", index_col=0)
     maf = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_data_mutations_extended_colorectal.csv", index_col=0, low_memory=False)
+    create_patientsXgene_count_pandas(mutation_data = maf, sample_data = sd, output_file = "GENIE_data/GENIE_v8")
     # #create_anndata_mut_counts( sample_data=sd, clinic_data=cd ,maf_data=maf, \
     # #                           h5ad_output_file= "GENIE_data/GENIE_v8/genie_v8_anndata_mutation_count.h5ad")
     # #create_kras_mut_counts( sample_data=sd, clinic_data=cd ,maf_data=maf, \
@@ -182,6 +211,6 @@ if __name__ == '__main__':
     # create_kras_mut_counts_per_patient( kras_mut_counts_sample = kras_count, clinic_data=cd, \
     #                             output_file = "GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_patient.csv" )
 
-    sd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_sample.csv", index_col=0)
-    cd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_patient.csv", index_col=0)
-    add_specific_mutation_information( sd, cd, maf, "GENIE_data/GENIE_v8", HGVSp_Short="p.G12C" )
+    # sd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_sample.csv", index_col=0)
+    # cd = pd.read_csv("GENIE_data/GENIE_v8/genie_v8_kras_mutation_count_patient.csv", index_col=0)
+    # add_specific_mutation_information( sd, cd, maf, "GENIE_data/GENIE_v8", HGVSp_Short="p.G12C" )
